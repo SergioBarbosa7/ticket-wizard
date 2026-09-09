@@ -68,7 +68,7 @@ Terminal 1 — servidor de ingressos:
 Terminal 2 — cliente de pedidos:
 
 ```bash
-./mvnw -pl pedidos-service exec:java -Dexec.mainClass=br.com.ticket.wizard.pedidos.ClientePedidosGrpc
+./mvnw -pl pedidos-service exec:java -Dexec.mainClass=br.com.ticket.wizard.pedidos.ClientePedidosGrpc -Dexec.args="3"
 ```
 
 Saída esperada no servidor:
@@ -83,19 +83,54 @@ Saída esperada no cliente:
 
 ```text
 Chamando o ingressos-service em localhost:50051
+Categoria com 500 ingressos, emitindo 3.
 
 == Cadastro de categoria ==
 Categoria ID: 3f1c...-...
 Status: OK
 Mensagem: Categoria cadastrada com sucesso.
 
-== Emissão de ingresso ==
+== Emissão de ingresso 1 ==
 Ingresso ID: 9b20...-...
 Status: OK
 Mensagem: Ingresso emitido: Pista do evento evento-001 por R$ 100,00. Restam 499.
+
+== Emissão de ingresso 2 ==
+Ingresso ID: ba63...-...
+Status: OK
+Mensagem: Ingresso emitido: Pista do evento evento-001 por R$ 100,00. Restam 498.
+
+== Emissão de ingresso 3 ==
+Ingresso ID: dad2...-...
+Status: OK
+Mensagem: Ingresso emitido: Pista do evento evento-001 por R$ 100,00. Restam 497.
 ```
 
 Os UUIDs mudam a cada execução.
+
+## Argumentos do cliente
+
+O cliente aceita dois argumentos opcionais em `-Dexec.args`, nesta ordem:
+
+| Posição | Significado                             | Padrão |
+|---------|-----------------------------------------|--------|
+| 1       | Quantos ingressos emitir na execução    | `1`    |
+| 2       | Quantidade disponível da categoria      | `500`  |
+
+```bash
+# emite 1 ingresso de uma categoria com 500
+./mvnw -pl pedidos-service exec:java -Dexec.mainClass=br.com.ticket.wizard.pedidos.ClientePedidosGrpc
+
+# emite 5 ingressos
+./mvnw -pl pedidos-service exec:java -Dexec.mainClass=br.com.ticket.wizard.pedidos.ClientePedidosGrpc -Dexec.args="5"
+
+# cadastra a categoria com 2 ingressos e tenta emitir 5
+./mvnw -pl pedidos-service exec:java -Dexec.mainClass=br.com.ticket.wizard.pedidos.ClientePedidosGrpc -Dexec.args="5 2"
+```
+
+Cada ingresso é um RPC `EmitirIngresso` independente: o servidor decrementa a
+quantidade a cada chamada, e o saldo aparece na mensagem de resposta. Argumento
+ausente ou inválido cai no valor padrão, com um aviso no console.
 
 ## Host e porta do servidor
 
@@ -116,21 +151,21 @@ A porta do servidor é a constante `PORTA` em
 
 ## Cenário de erro para a apresentação
 
-Para mostrar o tratamento de erro, altere em `ClientePedidosGrpc` a constante
-`QUANTIDADE_DISPONIVEL` para `0` e recompile o módulo:
+Para mostrar o tratamento de erro, peça mais ingressos do que a categoria tem.
+Não precisa editar nem recompilar nada:
 
 ```bash
-./mvnw -pl pedidos-service compile
+./mvnw -pl pedidos-service exec:java -Dexec.mainClass=br.com.ticket.wizard.pedidos.ClientePedidosGrpc -Dexec.args="3 2"
 ```
 
-A emissão passa a responder:
+As duas primeiras emissões saem com `status = "OK"` e a terceira responde:
 
 ```text
+== Emissão de ingresso 3 ==
+Ingresso ID:
 Status: ERRO
 Mensagem: Categoria esgotada.
 ```
-
-Depois da demonstração, restaure `QUANTIDADE_DISPONIVEL = 500`.
 
 ## Erros comuns
 

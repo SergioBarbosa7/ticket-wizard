@@ -20,7 +20,10 @@ public class ClientePedidosGrpc {
     private static final String USER_ID = "user-42";
     private static final String NOME_CATEGORIA = "Pista";
     private static final double PRECO = 100.0;
-    private static final int QUANTIDADE_DISPONIVEL = 500;
+
+    // Valores usados quando os argumentos não são informados na execução.
+    private static final int INGRESSOS_A_EMITIR_PADRAO = 1;
+    private static final int QUANTIDADE_DISPONIVEL_PADRAO = 500;
 
     private final IngressoServiceGrpc.IngressoServiceBlockingStub stub;
 
@@ -29,20 +32,50 @@ public class ClientePedidosGrpc {
         this.stub = IngressoServiceGrpc.newBlockingStub(canal);
     }
 
+    // Argumentos da execução: [ingressos a emitir] [quantidade disponível da categoria].
     public static void main(String[] args) {
+        int ingressosAEmitir = lerInteiro(args, 0, INGRESSOS_A_EMITIR_PADRAO, "Quantidade de ingressos");
+        int quantidadeDisponivel = lerInteiro(args, 1, QUANTIDADE_DISPONIVEL_PADRAO, "Quantidade disponível");
+
         String alvo = System.getenv().getOrDefault(VARIAVEL_DE_AMBIENTE, ALVO_PADRAO);
         System.out.println("Chamando o ingressos-service em " + alvo);
+        System.out.printf("Categoria com %d ingressos, emitindo %d.%n", quantidadeDisponivel, ingressosAEmitir);
 
         // O canal mantém a conexão usada pelo cliente para se comunicar com o servidor.
         ManagedChannel canal = ManagedChannelBuilder.forTarget(alvo).usePlaintext().build();
         ClientePedidosGrpc cliente = new ClientePedidosGrpc(canal);
 
-        // Fluxo da demonstração: cadastra a categoria e emite um ingresso dela.
-        String categoriaId = cliente.cadastrarCategoria(EVENTO_ID, NOME_CATEGORIA, PRECO, QUANTIDADE_DISPONIVEL);
-        cliente.emitirIngresso(EVENTO_ID, USER_ID, categoriaId);
+        // Fluxo da demonstração: cadastra a categoria e emite os ingressos dela.
+        String categoriaId = cliente.cadastrarCategoria(EVENTO_ID, NOME_CATEGORIA, PRECO, quantidadeDisponivel);
+
+        // Cada volta do laço é um RPC independente. O servidor decrementa a quantidade
+        // a cada emissão, então dá para acompanhar o saldo caindo nas respostas.
+        for (int numero = 1; numero <= ingressosAEmitir; numero++) {
+            cliente.emitirIngresso(EVENTO_ID, USER_ID, categoriaId, numero);
+        }
 
         // Libera os recursos de rede mantidos pelo canal.
         canal.shutdown();
+    }
+
+    // Lê um número da posição indicada dos argumentos. Sem argumento ou com valor
+    // inválido, avisa no console e segue com o padrão em vez de derrubar a demonstração.
+    private static int lerInteiro(String[] args, int indice, int padrao, String descricao) {
+        if (args.length <= indice) {
+            return padrao;
+        }
+
+        try {
+            int valor = Integer.parseInt(args[indice].trim());
+            if (valor >= 0) {
+                return valor;
+            }
+        } catch (NumberFormatException erro) {
+            // Valor não numérico: cai no aviso abaixo.
+        }
+
+        System.out.printf("%s inválida: \"%s\". Usando %d.%n", descricao, args[indice], padrao);
+        return padrao;
     }
 
     public String cadastrarCategoria(String eventoId, String nome, double preco, int quantidade) {
@@ -66,7 +99,7 @@ public class ClientePedidosGrpc {
         return response.getCategoriaId();
     }
 
-    public void emitirIngresso(String eventoId, String userId, String categoriaId) {
+    public void emitirIngresso(String eventoId, String userId, String categoriaId, int numero) {
         PedidoRequest request = PedidoRequest.newBuilder()
                                              .setEventoId(eventoId)
                                              .setUserId(userId)
@@ -76,7 +109,7 @@ public class ClientePedidosGrpc {
         IngressoResponse response = stub.emitirIngresso(request);
 
         System.out.println();
-        System.out.println("== Emissão de ingresso ==");
+        System.out.println("== Emissão de ingresso " + numero + " ==");
         System.out.println("Ingresso ID: " + response.getIngressoId());
         System.out.println("Status: " + response.getStatus());
         System.out.println("Mensagem: " + response.getMensagem());
