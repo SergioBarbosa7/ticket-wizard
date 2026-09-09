@@ -1,0 +1,51 @@
+// Usa a versao 3 da linguagem Protocol Buffers.
+syntax = "proto3";
+
+// Namespace do contrato Protobuf. Nao precisa ser igual ao pacote Java.
+package ingressos;
+
+// Gera uma classe Java separada para cada mensagem e servico.
+option java_multiple_files = true;
+// Pacote das classes Java criadas a partir deste arquivo.
+option java_package = "br.com.ticket.wizard.grpc";
+
+// Contrato do servico de ingressos que servidor e clientes devem seguir.
+service IngressoService {
+  // RPC unario: o organizador cadastra uma categoria de ingresso do evento.
+  rpc CadastrarCategoriaIngresso(CategoriaRequest)
+      returns (CategoriaResponse);
+
+  // RPC unario: o comprador solicita a emissao de um ingresso da categoria.
+  rpc EmitirIngresso(PedidoRequest)
+      returns (IngressoResponse);
+}
+
+// Mensagem enviada ao cadastrar uma categoria de ingresso.
+message CategoriaRequest {
+  // Os numeros identificam os campos.
+  string evento_id = 1;
+  string nome_categoria = 2;
+  double preco = 3;
+  int32 quantidade_disponivel = 4;
+}
+
+// Mensagem devolvida apos o cadastro da categoria.
+message CategoriaResponse {
+  string categoria_id = 1;
+  string status = 2;
+  string mensagem = 3;
+}
+
+// Mensagem enviada ao solicitar a emissao de um ingresso.
+message PedidoRequest {
+  string evento_id = 1;
+  string user_id = 2;
+  string categoria_id = 3;
+}
+
+// Mensagem devolvida apos a tentativa de emissao do ingresso.
+message IngressoResponse {
+  string ingresso_id = 1;
+  string status = 2;
+  string mensagem = 3;
+}
