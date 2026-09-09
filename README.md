@@ -9,6 +9,13 @@ por gRPC, sem Spring e sem banco de dados. O estado fica em memória.
 | `ingressos-service`| Servidor gRPC (Serviço B), dono do domínio de categorias e ingressos     |
 | `pedidos-service`  | Cliente gRPC (Serviço A), dispara a demo de cadastro + emissão           |
 
+## Integrantes
+
+| Nome                          | Matrícula   |
+|-------------------------------|-------------|
+| Sérgio Natan Costa Barbosa    | 202006577   |
+| Guilherme dos Santos Silva    | 202011563   |
+
 ## Arquitetura
 
 ```text
