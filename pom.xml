@@ -11,8 +11,11 @@
 
     <modules>
         <module>contratos-grpc</module>
+        <module>base-servicos</module>
+        <module>usuarios-service</module>
         <module>ingressos-service</module>
         <module>pedidos-service</module>
+        <module>api-gateway</module>
     </modules>
 
     <properties>
@@ -25,10 +28,46 @@
         <build.helper.maven.plugin.version>3.6.1</build.helper.maven.plugin.version>
         <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
         <exec.maven.plugin.version>3.6.3</exec.maven.plugin.version>
+        <maven.jar.plugin.version>3.4.2</maven.jar.plugin.version>
+        <maven.dependency.plugin.version>3.8.1</maven.dependency.plugin.version>
+        <spring.boot.version>3.5.16</spring.boot.version>
+        <jjwt.version>0.13.0</jjwt.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>br.com.ticket.wizard</groupId>
+                <artifactId>contratos-grpc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.ticket.wizard</groupId>
+                <artifactId>base-servicos</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-netty-shaded</artifactId>
@@ -86,6 +125,44 @@
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>exec-maven-plugin</artifactId>
                     <version>${exec.maven.plugin.version}</version>
+                </plugin>
+                <!-- Serviços gRPC: jar executável + dependências em target/lib (usado pelo Docker). -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>${maven.jar.plugin.version}</version>
+                    <configuration>
+                        <archive>
+                            <manifest>
+                                <addClasspath>true</addClasspath>
+                                <classpathPrefix>lib/</classpathPrefix>
+                                <mainClass>${main.class}</mainClass>
+                            </manifest>
+                        </archive>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>${maven.dependency.plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>copiar-dependencias</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>copy-dependencies</goal>
+                            </goals>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                                <includeScope>runtime</includeScope>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring.boot.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>

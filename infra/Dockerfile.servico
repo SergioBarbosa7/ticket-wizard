@@ -1,0 +1,16 @@
+#   docker build -f infra/Dockerfile.servico --build-arg MODULO=ingressos-service .
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /src
+COPY . .
+ARG MODULO
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B -q -pl ${MODULO} -am package
+
+FROM eclipse-temurin:21-jre
+ARG MODULO
+WORKDIR /app
+# O jar executável referencia as dependências em lib/ pelo Class-Path do manifesto.
+COPY --from=build /src/${MODULO}/target/lib ./lib
+COPY --from=build /src/${MODULO}/target/${MODULO}-1.0.0-SNAPSHOT.jar app.jar
+USER 10001
+ENTRYPOINT ["java", "-jar", "app.jar"]

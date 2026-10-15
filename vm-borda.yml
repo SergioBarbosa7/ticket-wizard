@@ -1,0 +1,26 @@
+#   docker compose -f vm-borda.yml --env-file .env.borda up -d --build
+# Os serviços gRPC ficam na VM-B; VM_INTERNA_IP é o IP INTERNO (da VPC) dela.
+name: ticket-wizard-borda
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.gateway
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env.borda (mínimo 32 caracteres)}
+      USUARIOS_SERVICE_HOST: ${VM_INTERNA_IP:?defina VM_INTERNA_IP no .env.borda}:${GRPC_USUARIOS_PORT:-50053}
+      INGRESSOS_SERVICE_HOST: ${VM_INTERNA_IP}:${GRPC_INGRESSOS_PORT:-50051}
+      PEDIDOS_SERVICE_HOST: ${VM_INTERNA_IP}:${GRPC_PEDIDOS_PORT:-50052}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: frontend
+    restart: unless-stopped
+    depends_on:
+      - api-gateway
+    ports:
+      - "${FRONTEND_PORT:-80}:80"

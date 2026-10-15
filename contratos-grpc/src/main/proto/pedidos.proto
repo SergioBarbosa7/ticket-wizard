@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package pedidos;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "br.com.ticket.wizard.grpc.pedidos";
+
+service PedidoService {
+  // Registra o pedido, aciona o ingressos-service para emitir os ingressos e
+  // devolve o pedido já CONFIRMADO. Propaga NOT_FOUND e FAILED_PRECONDITION
+  // do ingressos-service; o pedido fica registrado como FALHOU.
+  rpc RealizarPedido(RealizarPedidoRequest) returns (Pedido);
+
+  rpc ListarPedidos(ListarPedidosRequest) returns (ListarPedidosResponse);
+}
+
+enum StatusPedido {
+  STATUS_NAO_ESPECIFICADO = 0;
+  PENDENTE = 1;
+  CONFIRMADO = 2;
+  FALHOU = 3;
+}
+
+message RealizarPedidoRequest {
+  string usuario_id = 1;
+  string categoria_id = 2;
+  int32 quantidade = 3;
+}
+
+message Pedido {
+  string id = 1;
+  string usuario_id = 2;
+  string categoria_id = 3;
+  string evento_id = 4;
+  string nome_categoria = 5;
+  int32 quantidade = 6;
+  int64 valor_total_centavos = 7;
+  StatusPedido status = 8;
+  string motivo_falha = 9;
+  repeated string ingresso_ids = 10;
+  google.protobuf.Timestamp criado_em = 11;
+}
+
+message ListarPedidosRequest {
+  string usuario_id = 1;
+}
+
+message ListarPedidosResponse {
+  repeated Pedido pedidos = 1;
+}

@@ -12,15 +12,14 @@
 
     <artifactId>ingressos-service</artifactId>
 
+    <properties>
+        <main.class>br.com.ticket.wizard.ingressos.ServidorIngressosGrpc</main.class>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>br.com.ticket.wizard</groupId>
-            <artifactId>contratos-grpc</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-netty-shaded</artifactId>
+            <artifactId>base-servicos</artifactId>
         </dependency>
     </dependencies>
 
@@ -29,6 +28,14 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>

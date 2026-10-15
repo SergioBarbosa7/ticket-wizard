@@ -1,0 +1,78 @@
+#   docker compose -f vm-interna.yml --env-file .env.interna up -d --build
+# Portas gRPC publicadas no host: o firewall da VPC as libera só para a VM-A.
+name: ticket-wizard-interna
+
+x-servico-grpc: &servico-grpc
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ticket
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env.interna}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticket -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    # Só no loopback: use `docker compose exec postgres psql` ou um túnel SSH para ver os dados.
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+
+  usuarios-service:
+    <<: *servico-grpc
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.servico
+      args:
+        MODULO: usuarios-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/usuarios_db
+      DB_USER: ticket
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GRPC_PORT: 50053
+    ports:
+      - "${GRPC_USUARIOS_PORT:-50053}:50053"
+
+  ingressos-service:
+    <<: *servico-grpc
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.servico
+      args:
+        MODULO: ingressos-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/ingressos_db
+      DB_USER: ticket
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GRPC_PORT: 50051
+    ports:
+      - "${GRPC_INGRESSOS_PORT:-50051}:50051"
+
+  pedidos-service:
+    <<: *servico-grpc
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.servico
+      args:
+        MODULO: pedidos-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/pedidos_db
+      DB_USER: ticket
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GRPC_PORT: 50052
+      # Chamada interna à VM-B: não passa pelo firewall da VPC.
+      INGRESSOS_SERVICE_HOST: ingressos-service:50051
+    ports:
+      - "${GRPC_PEDIDOS_PORT:-50052}:50052"
+
+volumes:
+  pgdata:

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Ticket Wizard</title>
+  <link rel="stylesheet" href="css/estilo.css">
+  <script src="js/config.js"></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <a class="pular" href="#conteudo">Ir para o conteúdo</a>
+
+  <header class="topo">
+    <div class="topo__marca"><span class="topo__estrela" aria-hidden="true">✦</span> Ticket Wizard</div>
+    <div class="topo__usuario" id="usuario" hidden>
+      <span id="usuario-nome"></span>
+      <span class="selo" id="usuario-papel"></span>
+      <button type="button" class="botao botao--secundario" id="btn-sair">Sair</button>
+    </div>
+  </header>
+
+  <main class="conteudo" id="conteudo" tabindex="-1">
+    <section id="tela-auth" class="cartao cartao--auth" aria-labelledby="auth-titulo">
+      <h1 id="auth-titulo" class="titulo">Bem-vindo ao Ticket Wizard</h1>
+      <p class="subtitulo">Compre ingressos ou cadastre as categorias dos seus eventos.</p>
+
+      <div class="abas" role="tablist" aria-label="Acesso">
+        <button type="button" role="tab" id="aba-login" class="aba" aria-selected="true" aria-controls="form-login">Entrar</button>
+        <button type="button" role="tab" id="aba-cadastro" class="aba" aria-selected="false" aria-controls="form-cadastro" tabindex="-1">Cadastrar</button>
+      </div>
+
+      <p class="alerta" id="auth-aviso" role="status" hidden></p>
+
+      <form id="form-login" novalidate aria-labelledby="aba-login">
+        <p class="alerta alerta--erro" data-alerta role="alert" hidden></p>
+        <div class="campo">
+          <label for="login-email">E-mail</label>
+          <input id="login-email" name="email" type="email" autocomplete="username" aria-describedby="login-email-erro">
+          <p class="campo__erro" id="login-email-erro" data-erro-campo="email"></p>
+        </div>
+        <div class="campo">
+          <label for="login-senha">Senha</label>
+          <input id="login-senha" name="senha" type="password" autocomplete="current-password" aria-describedby="login-senha-erro">
+          <p class="campo__erro" id="login-senha-erro" data-erro-campo="senha"></p>
+        </div>
+        <button type="submit" class="botao botao--primario botao--cheio">Entrar</button>
+      </form>
+
+      <form id="form-cadastro" novalidate hidden aria-labelledby="aba-cadastro">
+        <p class="alerta alerta--erro" data-alerta role="alert" hidden></p>
+        <div class="campo">
+          <label for="cad-nome">Nome</label>
+          <input id="cad-nome" name="nome" type="text" autocomplete="name" aria-describedby="cad-nome-erro">
+          <p class="campo__erro" id="cad-nome-erro" data-erro-campo="nome"></p>
+        </div>
+        <div class="campo">
+          <label for="cad-email">E-mail</label>
+          <input id="cad-email" name="email" type="email" autocomplete="email" aria-describedby="cad-email-erro">
+          <p class="campo__erro" id="cad-email-erro" data-erro-campo="email"></p>
+        </div>
+        <div class="campo">
+          <label for="cad-senha">Senha <span class="campo__dica">(mínimo de 8 caracteres)</span></label>
+          <input id="cad-senha" name="senha" type="password" autocomplete="new-password" aria-describedby="cad-senha-erro">
+          <p class="campo__erro" id="cad-senha-erro" data-erro-campo="senha"></p>
+        </div>
+        <div class="campo">
+          <label for="cad-papel">Perfil</label>
+          <select id="cad-papel" name="papel" aria-describedby="cad-papel-erro">
+            <option value="COMPRADOR">Comprador</option>
+            <option value="ORGANIZADOR">Organizador</option>
+          </select>
+          <p class="campo__erro" id="cad-papel-erro" data-erro-campo="papel"></p>
+        </div>
+        <button type="submit" class="botao botao--primario botao--cheio">Criar conta</button>
+      </form>
+    </section>
+
+    <section id="tela-app" hidden>
+      <nav class="navegacao" id="navegacao" aria-label="Seções"></nav>
+      <div id="painel"></div>
+    </section>
+  </main>
+
+  <aside class="inspetor" id="inspetor" aria-label="Inspetor de requisições">
+    <div class="inspetor__barra">
+      <button type="button" class="inspetor__titulo" id="inspetor-alternar" aria-expanded="true" aria-controls="inspetor-corpo">
+        <span class="inspetor__seta" aria-hidden="true">▾</span>
+        Inspetor de requisições
+        <span class="inspetor__contagem" id="inspetor-contagem">0</span>
+      </button>
+      <div class="inspetor__acoes">
+        <button type="button" class="botao botao--mini" id="inspetor-sem-token">Simular sem token</button>
+        <button type="button" class="botao botao--mini" id="inspetor-token-invalido">Simular token inválido</button>
+        <button type="button" class="botao botao--mini botao--secundario" id="inspetor-limpar">Limpar</button>
+      </div>
+    </div>
+    <div class="inspetor__corpo" id="inspetor-corpo">
+      <p class="inspetor__vazio" id="inspetor-vazio">Nenhuma requisição ainda. Use a aplicação e as chamadas aparecem aqui.</p>
+      <ol class="inspetor__lista" id="inspetor-lista"></ol>
+    </div>
+  </aside>
+</body>
+</html>

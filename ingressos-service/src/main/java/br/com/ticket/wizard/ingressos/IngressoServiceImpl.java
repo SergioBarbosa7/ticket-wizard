@@ -1,114 +1,140 @@
 package br.com.ticket.wizard.ingressos;
 
-import br.com.ticket.wizard.grpc.CategoriaRequest;
-import br.com.ticket.wizard.grpc.CategoriaResponse;
-import br.com.ticket.wizard.grpc.IngressoResponse;
-import br.com.ticket.wizard.grpc.IngressoServiceGrpc;
-import br.com.ticket.wizard.grpc.PedidoRequest;
+import br.com.ticket.wizard.base.Erros;
+import br.com.ticket.wizard.base.Tempo;
+import br.com.ticket.wizard.base.Transacao;
+import br.com.ticket.wizard.base.Validacao;
+import br.com.ticket.wizard.grpc.ingressos.CategoriaRequest;
+import br.com.ticket.wizard.grpc.ingressos.EmitirIngressosRequest;
+import br.com.ticket.wizard.grpc.ingressos.EmitirIngressosResponse;
+import br.com.ticket.wizard.grpc.ingressos.Ingresso;
+import br.com.ticket.wizard.grpc.ingressos.IngressoServiceGrpc;
+import br.com.ticket.wizard.grpc.ingressos.ListarCategoriasRequest;
+import br.com.ticket.wizard.grpc.ingressos.ListarCategoriasResponse;
+import br.com.ticket.wizard.grpc.ingressos.ListarIngressosRequest;
+import br.com.ticket.wizard.grpc.ingressos.ListarIngressosResponse;
 import io.grpc.stub.StreamObserver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.Map;
+import javax.sql.DataSource;
+import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
-// Implementa no servidor o contrato gerado a partir de IngressoService no .proto.
 public class IngressoServiceImpl extends IngressoServiceGrpc.IngressoServiceImplBase {
 
-    // Estado em memória desta fase: nenhum banco de dados ainda.
-    private final Map<String, Categoria> categorias = new ConcurrentHashMap<>();
-    private final Map<String, Ingresso> ingressos = new ConcurrentHashMap<>();
+    private static final Logger LOG = LoggerFactory.getLogger(IngressoServiceImpl.class);
 
-    // Categoria de ingresso de um evento. A quantidade cai a cada emissão.
-    private static final class Categoria {
-        private final String eventoId;
-        private final String nome;
-        private final double preco;
-        private int quantidadeDisponivel;
+    private final DataSource dataSource;
+    private final CategoriaRepositorio categorias;
+    private final IngressoRepositorio ingressos;
 
-        private Categoria(String eventoId, String nome, double preco, int quantidadeDisponivel) {
-            this.eventoId = eventoId;
-            this.nome = nome;
-            this.preco = preco;
-            this.quantidadeDisponivel = quantidadeDisponivel;
-        }
-    }
-
-    // Ingresso já emitido para um comprador.
-    private record Ingresso(String categoriaId, String userId) {
+    public IngressoServiceImpl(DataSource dataSource, CategoriaRepositorio categorias, IngressoRepositorio ingressos) {
+        this.dataSource = dataSource;
+        this.categorias = categorias;
+        this.ingressos = ingressos;
     }
 
     @Override
-    // request é a única entrada declarada no .proto. O gRPC adiciona responseObserver
-    // à API Java do servidor para enviar a resposta; por isso o método retorna void.
     public void cadastrarCategoriaIngresso(CategoriaRequest request,
-                                           StreamObserver<CategoriaResponse> responseObserver) {
-        // A requisição já chega desserializada como uma mensagem Protobuf.
-        System.out.printf("Categoria recebida: evento=%s, nome=%s, preco=%.2f, quantidade=%d%n",
-                          request.getEventoId(),
-                          request.getNomeCategoria(),
-                          request.getPreco(),
-                          request.getQuantidadeDisponivel());
+                                           StreamObserver<br.com.ticket.wizard.grpc.ingressos.Categoria> responseObserver) {
+        String eventoId = Validacao.texto("evento_id", request.getEventoId(), 100);
+        String nome = Validacao.texto("nome_categoria", request.getNomeCategoria(), 100);
+        if (request.getPrecoCentavos() <= 0) {
+            throw Erros.argumentoInvalido("O preço deve ser maior que zero.");
+        }
+        if (request.getQuantidadeDisponivel() <= 0) {
+            throw Erros.argumentoInvalido("A quantidade disponível deve ser maior que zero.");
+        }
+        UUID criadoPor = request.getCriadoPor().isBlank() ? null : Validacao.uuid("criado_por", request.getCriadoPor());
 
-        String categoriaId = UUID.randomUUID().toString();
-        categorias.put(categoriaId, new Categoria(request.getEventoId(),
-                                                  request.getNomeCategoria(),
-                                                  request.getPreco(),
-                                                  request.getQuantidadeDisponivel()));
+        Categoria nova = new Categoria(UUID.randomUUID(), eventoId, nome, request.getPrecoCentavos(),
+                                       request.getQuantidadeDisponivel(), request.getQuantidadeDisponivel());
+        Transacao.executar(dataSource, conexao -> categorias.inserir(conexao, nova, criadoPor));
+        LOG.info("Categoria cadastrada: evento={}, nome={}, preco={}c, quantidade={}",
+                 eventoId, nome, nova.precoCentavos(), nova.quantidadeTotal());
 
-        // A resposta também é uma mensagem imutável gerada pelo Protobuf.
-        CategoriaResponse response = CategoriaResponse.newBuilder()
-                                                      .setCategoriaId(categoriaId)
-                                                      .setStatus("OK")
-                                                      .setMensagem("Categoria cadastrada com sucesso.")
-                                                      .build();
-
-        // Envia a resposta ao cliente e sinaliza que o RPC terminou com sucesso.
-        responseObserver.onNext(response);
+        responseObserver.onNext(paraProto(nova));
         responseObserver.onCompleted();
     }
 
     @Override
-    public void emitirIngresso(PedidoRequest request, StreamObserver<IngressoResponse> responseObserver) {
-        System.out.printf("Emissão solicitada: evento=%s, usuario=%s, categoria=%s%n",
-                          request.getEventoId(),
-                          request.getUserId(),
-                          request.getCategoriaId());
+    public void listarCategorias(ListarCategoriasRequest request,
+                                 StreamObserver<ListarCategoriasResponse> responseObserver) {
+        List<Categoria> lista = Transacao.executar(dataSource,
+                                                   conexao -> categorias.listar(conexao, request.getEventoId()));
 
-        Categoria categoria = categorias.get(request.getCategoriaId());
-
-        // Erros de negócio voltam como status na própria resposta, sem lançar exceção.
-        if (categoria == null) {
-            responseObserver.onNext(erro("Categoria não encontrada."));
-            responseObserver.onCompleted();
-            return;
-        }
-
-        if (categoria.quantidadeDisponivel <= 0) {
-            responseObserver.onNext(erro("Categoria esgotada."));
-            responseObserver.onCompleted();
-            return;
-        }
-
-        categoria.quantidadeDisponivel--;
-        String ingressoId = UUID.randomUUID().toString();
-        ingressos.put(ingressoId, new Ingresso(request.getCategoriaId(), request.getUserId()));
-
-        IngressoResponse response = IngressoResponse.newBuilder()
-                                                    .setIngressoId(ingressoId)
-                                                    .setStatus("OK")
-                                                    .setMensagem(String.format(
-                                                            "Ingresso emitido: %s do evento %s por R$ %.2f. Restam %d.",
-                                                            categoria.nome,
-                                                            categoria.eventoId,
-                                                            categoria.preco,
-                                                            categoria.quantidadeDisponivel))
-                                                    .build();
-
-        responseObserver.onNext(response);
+        ListarCategoriasResponse.Builder resposta = ListarCategoriasResponse.newBuilder();
+        lista.forEach(categoria -> resposta.addCategorias(paraProto(categoria)));
+        responseObserver.onNext(resposta.build());
         responseObserver.onCompleted();
     }
 
-    private IngressoResponse erro(String mensagem) {
-        return IngressoResponse.newBuilder().setIngressoId("").setStatus("ERRO").setMensagem(mensagem).build();
+    @Override
+    public void emitirIngressos(EmitirIngressosRequest request,
+                                StreamObserver<EmitirIngressosResponse> responseObserver) {
+        UUID categoriaId = Validacao.uuid("categoria_id", request.getCategoriaId());
+        UUID usuarioId = Validacao.uuid("usuario_id", request.getUsuarioId());
+        UUID pedidoId = request.getPedidoId().isBlank() ? null : Validacao.uuid("pedido_id", request.getPedidoId());
+        int quantidade = Validacao.quantidadeDoPedido(request.getQuantidade());
+
+        EmitirIngressosResponse resposta = Transacao.executar(dataSource, conexao -> {
+            var atualizada = categorias.baixarEstoque(conexao, categoriaId, quantidade);
+
+            if (atualizada.isEmpty()) {
+                var existente = categorias.buscar(conexao, categoriaId)
+                                          .orElseThrow(() -> Erros.naoEncontrado("Categoria não encontrada."));
+                throw Erros.precondicaoFalhou(existente.quantidadeDisponivel() == 0
+                                              ? "Categoria esgotada."
+                                              : "Estoque insuficiente: restam " + existente.quantidadeDisponivel()
+                                                + " ingresso(s).");
+            }
+
+            Categoria categoria = atualizada.get();
+            List<UUID> ids = ingressos.inserir(conexao, categoriaId, usuarioId, pedidoId, quantidade);
+            return EmitirIngressosResponse.newBuilder()
+                                          .addAllIngressoIds(ids.stream().map(UUID::toString).toList())
+                                          .setCategoria(paraProto(categoria))
+                                          .setValorTotalCentavos(categoria.precoCentavos() * quantidade)
+                                          .build();
+        });
+
+        LOG.info("Emitidos {} ingresso(s): categoria={}, usuario={}, restam {}",
+                 quantidade, categoriaId, usuarioId, resposta.getCategoria().getQuantidadeDisponivel());
+        responseObserver.onNext(resposta);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void listarIngressos(ListarIngressosRequest request,
+                                StreamObserver<ListarIngressosResponse> responseObserver) {
+        UUID usuarioId = Validacao.uuid("usuario_id", request.getUsuarioId());
+        List<IngressoEmitido> lista = Transacao.executar(dataSource,
+                                                         conexao -> ingressos.listarPorUsuario(conexao, usuarioId));
+
+        ListarIngressosResponse.Builder resposta = ListarIngressosResponse.newBuilder();
+        for (IngressoEmitido emitido : lista) {
+            resposta.addIngressos(Ingresso.newBuilder()
+                                          .setId(emitido.id().toString())
+                                          .setCategoriaId(emitido.categoriaId().toString())
+                                          .setEventoId(emitido.eventoId())
+                                          .setNomeCategoria(emitido.nomeCategoria())
+                                          .setUsuarioId(emitido.usuarioId().toString())
+                                          .setPedidoId(emitido.pedidoId() == null ? "" : emitido.pedidoId().toString())
+                                          .setEmitidoEm(Tempo.paraTimestamp(emitido.emitidoEm())));
+        }
+        responseObserver.onNext(resposta.build());
+        responseObserver.onCompleted();
+    }
+
+    private static br.com.ticket.wizard.grpc.ingressos.Categoria paraProto(Categoria categoria) {
+        return br.com.ticket.wizard.grpc.ingressos.Categoria.newBuilder()
+                                                            .setId(categoria.id().toString())
+                                                            .setEventoId(categoria.eventoId())
+                                                            .setNome(categoria.nome())
+                                                            .setPrecoCentavos(categoria.precoCentavos())
+                                                            .setQuantidadeTotal(categoria.quantidadeTotal())
+                                                            .setQuantidadeDisponivel(categoria.quantidadeDisponivel())
+                                                            .build();
     }
 }
