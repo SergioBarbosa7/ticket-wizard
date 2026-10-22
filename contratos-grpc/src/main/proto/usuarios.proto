@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package usuarios;
+
+option java_multiple_files = true;
+option java_package = "br.com.ticket.wizard.grpc.usuarios";
+
+service UsuarioService {
+  // ALREADY_EXISTS se o e-mail já está cadastrado; INVALID_ARGUMENT se faltar campo.
+  rpc Cadastrar(CadastrarUsuarioRequest) returns (Usuario);
+
+  // UNAUTHENTICATED se o e-mail não existe ou a senha não confere (mesma resposta
+  // nos dois casos, para não revelar quais e-mails estão cadastrados).
+  rpc Autenticar(AutenticarRequest) returns (Usuario);
+}
+
+enum Papel {
+  PAPEL_NAO_ESPECIFICADO = 0;
+  COMPRADOR = 1;
+  ORGANIZADOR = 2;
+}
+
+message CadastrarUsuarioRequest {
+  string nome = 1;
+  string email = 2;
+  string senha = 3;
+  Papel papel = 4;
+}
+
+message AutenticarRequest {
+  string email = 1;
+  string senha = 2;
+}
+
+// Nunca carrega senha nem hash.
+message Usuario {
+  string id = 1;
+  string nome = 2;
+  string email = 3;
+  Papel papel = 4;
+}

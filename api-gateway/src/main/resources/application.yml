@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: api-gateway
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+gateway:
+  jwt:
+    # Sem valor padrão de propósito: o segredo nunca fica no repositório.
+    secret: ${JWT_SECRET}
+    expiracao-segundos: ${JWT_EXPIRACAO_SEGUNDOS:3600}
+  servicos:
+    usuarios: ${USUARIOS_SERVICE_HOST:localhost:50053}
+    ingressos: ${INGRESSOS_SERVICE_HOST:localhost:50051}
+    pedidos: ${PEDIDOS_SERVICE_HOST:localhost:50052}
+  cors:
+    # Só para desenvolver o frontend fora do nginx. Atrás do nginx a origem é a mesma.
+    origens: ${CORS_ORIGINS:http://localhost:*,http://127.0.0.1:*}

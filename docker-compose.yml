@@ -1,0 +1,102 @@
+# Requer um arquivo .env (copie de .env.example).
+name: ticket-wizard
+
+x-servico-grpc: &servico-grpc
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ticket
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticket -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    # Só no loopback: o banco não fica exposto à rede.
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+
+  usuarios-service:
+    <<: *servico-grpc
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.servico
+      args:
+        MODULO: usuarios-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/usuarios_db
+      DB_USER: ticket
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GRPC_PORT: 50053
+    expose:
+      - "50053"
+
+  ingressos-service:
+    <<: *servico-grpc
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.servico
+      args:
+        MODULO: ingressos-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/ingressos_db
+      DB_USER: ticket
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GRPC_PORT: 50051
+    expose:
+      - "50051"
+
+  pedidos-service:
+    <<: *servico-grpc
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.servico
+      args:
+        MODULO: pedidos-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/pedidos_db
+      DB_USER: ticket
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GRPC_PORT: 50052
+      INGRESSOS_SERVICE_HOST: ingressos-service:50051
+    expose:
+      - "50052"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.gateway
+    restart: unless-stopped
+    depends_on:
+      - usuarios-service
+      - ingressos-service
+      - pedidos-service
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (mínimo 32 caracteres)}
+      USUARIOS_SERVICE_HOST: usuarios-service:50053
+      INGRESSOS_SERVICE_HOST: ingressos-service:50051
+      PEDIDOS_SERVICE_HOST: pedidos-service:50052
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: frontend
+    restart: unless-stopped
+    depends_on:
+      - api-gateway
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+
+volumes:
+  pgdata:

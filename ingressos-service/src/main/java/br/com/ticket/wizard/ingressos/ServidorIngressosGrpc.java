@@ -1,25 +1,18 @@
 package br.com.ticket.wizard.ingressos;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import br.com.ticket.wizard.base.Ambiente;
+import br.com.ticket.wizard.base.BancoDeDados;
+import br.com.ticket.wizard.base.ServidorGrpc;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 
-// Inicializa o servidor gRPC e publica a implementação do serviço de ingressos.
 public class ServidorIngressosGrpc {
 
-    private static final int PORTA = 50051;
-
     public static void main(String[] args) throws IOException, InterruptedException {
-        // Registra o serviço que atenderá os métodos definidos no arquivo .proto.
-        Server servidor = ServerBuilder.forPort(PORTA)
-                                       .addService(new IngressoServiceImpl())
-                                       .build()
-                                       .start();
+        DataSource dataSource = BancoDeDados.conectar("ingressos_db");
+        var servico = new IngressoServiceImpl(dataSource, new CategoriaRepositorio(), new IngressoRepositorio());
 
-        System.out.println("Servidor gRPC iniciado na porta " + PORTA);
-
-        // Mantém o processo ativo enquanto o servidor espera novas chamadas.
-        servidor.awaitTermination();
+        ServidorGrpc.executar("ingressos-service", Ambiente.inteiro("GRPC_PORT", 50051), servico);
     }
 }

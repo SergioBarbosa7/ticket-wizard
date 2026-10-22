@@ -1,51 +1,79 @@
-// Usa a versao 3 da linguagem Protocol Buffers.
 syntax = "proto3";
 
-// Namespace do contrato Protobuf. Nao precisa ser igual ao pacote Java.
 package ingressos;
 
-// Gera uma classe Java separada para cada mensagem e servico.
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
-// Pacote das classes Java criadas a partir deste arquivo.
-option java_package = "br.com.ticket.wizard.grpc";
+option java_package = "br.com.ticket.wizard.grpc.ingressos";
 
-// Contrato do servico de ingressos que servidor e clientes devem seguir.
+// Erros de negócio voltam como status gRPC (INVALID_ARGUMENT, NOT_FOUND,
+// FAILED_PRECONDITION), nunca como campo na resposta.
 service IngressoService {
-  // RPC unario: o organizador cadastra uma categoria de ingresso do evento.
-  rpc CadastrarCategoriaIngresso(CategoriaRequest)
-      returns (CategoriaResponse);
+  rpc CadastrarCategoriaIngresso(CategoriaRequest) returns (Categoria);
 
-  // RPC unario: o comprador solicita a emissao de um ingresso da categoria.
-  rpc EmitirIngresso(PedidoRequest)
-      returns (IngressoResponse);
+  rpc ListarCategorias(ListarCategoriasRequest) returns (ListarCategoriasResponse);
+
+  // NOT_FOUND se a categoria não existe; FAILED_PRECONDITION se o estoque não basta.
+  rpc EmitirIngressos(EmitirIngressosRequest) returns (EmitirIngressosResponse);
+
+  rpc ListarIngressos(ListarIngressosRequest) returns (ListarIngressosResponse);
 }
 
-// Mensagem enviada ao cadastrar uma categoria de ingresso.
 message CategoriaRequest {
-  // Os numeros identificam os campos.
   string evento_id = 1;
   string nome_categoria = 2;
-  double preco = 3;
+  // Valor em centavos: dinheiro nunca trafega como ponto flutuante.
+  int64 preco_centavos = 3;
   int32 quantidade_disponivel = 4;
+  string criado_por = 5;
 }
 
-// Mensagem devolvida apos o cadastro da categoria.
-message CategoriaResponse {
-  string categoria_id = 1;
-  string status = 2;
-  string mensagem = 3;
+message Categoria {
+  string id = 1;
+  string evento_id = 2;
+  string nome = 3;
+  int64 preco_centavos = 4;
+  int32 quantidade_total = 5;
+  int32 quantidade_disponivel = 6;
 }
 
-// Mensagem enviada ao solicitar a emissao de um ingresso.
-message PedidoRequest {
+message ListarCategoriasRequest {
+  // Vazio lista todas as categorias.
   string evento_id = 1;
-  string user_id = 2;
-  string categoria_id = 3;
 }
 
-// Mensagem devolvida apos a tentativa de emissao do ingresso.
-message IngressoResponse {
-  string ingresso_id = 1;
-  string status = 2;
-  string mensagem = 3;
+message ListarCategoriasResponse {
+  repeated Categoria categorias = 1;
+}
+
+message EmitirIngressosRequest {
+  string categoria_id = 1;
+  string usuario_id = 2;
+  int32 quantidade = 3;
+  string pedido_id = 4;
+}
+
+message EmitirIngressosResponse {
+  repeated string ingresso_ids = 1;
+  Categoria categoria = 2;
+  int64 valor_total_centavos = 3;
+}
+
+message ListarIngressosRequest {
+  string usuario_id = 1;
+}
+
+message Ingresso {
+  string id = 1;
+  string categoria_id = 2;
+  string evento_id = 3;
+  string nome_categoria = 4;
+  string usuario_id = 5;
+  string pedido_id = 6;
+  google.protobuf.Timestamp emitido_em = 7;
+}
+
+message ListarIngressosResponse {
+  repeated Ingresso ingressos = 1;
 }
